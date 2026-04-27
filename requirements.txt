@@ -1,0 +1,10 @@
+crewai
+python-pptx
+python-docx
+diagrams
+pydantic
+python-dotenv
+langchain
+langchain-community
+ddgs
+ollama
