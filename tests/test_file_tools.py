@@ -11,6 +11,7 @@ from tools.render_utils import (
     build_slide_entries,
     resolve_image_path,
     dispatch_slide_layout,
+    generate_preview_html,
     render_title_slide,
     render_agenda_slide,
     render_diagram_full_slide,
@@ -271,6 +272,29 @@ def test_apply_reference_doc_style_conditional_headings():
     assert "Troubleshooting & Security Considerations" in headings
     # Section B has no troubleshooting, so only one Troubleshooting heading
     assert headings.count("Troubleshooting & Security Considerations") == 1
+
+
+def test_generate_preview_html():
+    import tempfile
+    import shutil
+    tmpdir = tempfile.mkdtemp()
+    try:
+        entries = [
+            {"title": "Intro", "layout_type": "Title"},
+            {"title": "Agenda", "layout_type": "Agenda"},
+            {"title": "Deep Dive", "layout_type": "Title and Content"},
+        ]
+        path = generate_preview_html("test_run", entries, output_dir=tmpdir)
+        assert os.path.exists(path)
+        with open(path) as f:
+            html = f.read()
+        assert "Intro" in html
+        assert "Agenda" in html
+        assert "Deep Dive" in html
+        assert "3 slides" in html
+        assert "test_run" in html
+    finally:
+        shutil.rmtree(tmpdir)
 
 
 def test_apply_reference_doc_style_custom_subheadings():

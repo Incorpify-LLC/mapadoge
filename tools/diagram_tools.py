@@ -4,8 +4,10 @@ import sys
 from crewai.tools import tool
 
 from tools.logging_config import get_logger
+from tools.diagram_utils import inject_theme_colors
 
 logger = get_logger("tools.diagram")
+
 
 def _write_and_run_script(script_content, filename, temp_dir="temp"):
     os.makedirs(temp_dir, exist_ok=True)
@@ -25,8 +27,9 @@ def _write_and_run_script(script_content, filename, temp_dir="temp"):
         return None
 
 @tool("generate_infra_diagram")
-def generate_infra_diagram(script_content, filename):
+def generate_infra_diagram(script_content, filename, style_config=None):
     """Executes a Python script using the diagrams library to generate a PNG. Returns the absolute path to the generated image, or an error string."""
+    script_content = inject_theme_colors(script_content, style_config)
     result = _write_and_run_script(script_content, filename)
     if result:
         logger.info("Diagram generated: %s", result)
@@ -35,8 +38,9 @@ def generate_infra_diagram(script_content, filename):
     return f"Error: diagram generation failed for {filename}."
 
 @tool("generate_diagram_with_fallback")
-def generate_diagram_with_fallback(script_content, filename, search_query=""):
+def generate_diagram_with_fallback(script_content, filename, search_query="", style_config=None):
     """Generates a diagram. If it fails, falls back to fetching a web image. Returns the absolute path to the PNG or fetched image."""
+    script_content = inject_theme_colors(script_content, style_config)
     result = _write_and_run_script(script_content, filename)
     if result:
         return result

@@ -521,6 +521,57 @@ def dispatch_slide_layout(slide, entry, style, slide_number=None):
         apply_enhanced_ppt_style(slide, title, bullets, style, diagram_path=diagram_path, image_path=image_path, slide_number=slide_number)
 
 
+def generate_preview_html(run_id, slide_entries, output_dir="output"):
+    """Generate an HTML preview file with a grid of slide titles.
+
+    Creates `output/preview_{run_id}.html` showing all slide titles in a
+    numbered grid for quick visual verification without opening the PPT.
+
+    Args:
+        run_id: The run identifier for filename.
+        slide_entries: List of slide entry dicts (from build_slide_entries).
+        output_dir: Directory to write the HTML file.
+
+    Returns:
+        Absolute path to the generated HTML file.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    lines = [
+        "<!DOCTYPE html>",
+        "<html><head><meta charset='utf-8'>",
+        f"<title>Preview — {run_id}</title>",
+        "<style>",
+        "body{font-family:Calibri,Arial,sans-serif;background:#f5f7fa;margin:0;padding:20px;}",
+        "h1{color:#0F2C59;}",
+        ".grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px;margin-top:20px;}",
+        ".slide-card{background:#fff;border-radius:8px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,0.12);border-left:4px solid #0F2C59;}",
+        ".slide-num{font-size:12px;color:#666;margin-bottom:4px;}",
+        ".slide-title{font-size:16px;font-weight:600;color:#1A1A2E;}",
+        ".slide-count{margin-top:20px;color:#666;font-size:14px;}",
+        "</style></head><body>",
+        f"<h1>Presentation Preview — {run_id}</h1>",
+        f"<div class='slide-count'>{len(slide_entries)} slides</div>",
+        "<div class='grid'>",
+    ]
+
+    for i, entry in enumerate(slide_entries, start=1):
+        title = entry.get("title", "Untitled")
+        layout = entry.get("layout_type", "Title and Content")
+        lines.append(f"<div class='slide-card'>")
+        lines.append(f"<div class='slide-num'>Slide {i} — {layout}</div>")
+        lines.append(f"<div class='slide-title'>{title}</div>")
+        lines.append(f"</div>")
+
+    lines.append("</div></body></html>")
+
+    path = os.path.join(output_dir, f"preview_{run_id}.html")
+    with open(path, "w") as f:
+        f.write("\n".join(lines))
+
+    logger.info("Preview HTML saved: %s", path)
+    return os.path.abspath(path)
+
+
 def apply_reference_doc_style(doc, sections, style_config):
     """Apply themed styling to a reference manual document with conditional subheadings."""
     primary_color = style_config.get("primary_color", "#0F2C59")

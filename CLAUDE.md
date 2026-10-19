@@ -93,9 +93,11 @@ Rate-limit fallback: if the primary model throws `429`, `resource_exhausted`, or
 - **Slide chunking** (`render_utils.py`): max 6 bullets per slide; overflow slides get `(N/M)` appended to the title
 - **Slide layouts** (`render_utils.py`): `dispatch_slide_layout()` routes each slide to a renderer based on `layout_type` — Title (centered + subtitle + date), Agenda (numbered two-column), Diagram Full (large diagram + caption), Quote (pull-quote + attribution), Comparison (two-column), Divider (centered + accent bar), Title and Content (default with optional side image)
 - **Multi-level bullets**: `apply_enhanced_ppt_style` respects `bullet.level` (0-3) for indented hierarchy
+- **Diagram color injection** (`tools/diagram_utils.py`): `inject_theme_colors()` prepends `PRIMARY`, `SECONDARY`, etc. variables to LLM-generated diagram scripts so they use the active theme colors automatically
+- **Preview generation** (`render_utils.py`): After PPT creation, `generate_preview_html()` writes `output/preview_{run_id}.html` — a numbered grid of slide titles + layout types for quick verification
 - **Search tools** (`search_tools.py`, `image_tools.py`) use DuckDuckGo (`ddgs`) with exponential backoff + jitter on 403/rate-limit errors
 - **Legacy file**: `legacy/orchastration.py` is a 4-agent reference implementation — it is NOT imported by `main.py`
 - **Checkpointing** (`tools/checkpoint.py`): After each task completes, its output is saved to `output/checkpoints/{run_id}/{step_name}.json`. Use `--resume RUN_ID` to re-run only the steps that don't have checkpoints yet. Pure functions — unit-tested.
-- **Pure utility modules**: `tools/render_utils.py`, `tools/schema_parser.py`, and `tools/checkpoint.py` have no crewai dependency and are unit-tested (47 tests)
+- **Pure utility modules**: `tools/render_utils.py`, `tools/schema_parser.py`, `tools/checkpoint.py`, and `tools/diagram_utils.py` have no crewai dependency and are unit-tested (53 tests)
 - **Scratch files**: `tmp_writer/`, `tmp_agents.py` are gitignored experimental artifacts
 - **Gitignored**: `output/`, `temp/`, `.env`, `__pycache__/`, `.venv/`, `config.yaml`

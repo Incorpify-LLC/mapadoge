@@ -6,6 +6,7 @@ from tools.render_utils import (
     dispatch_slide_layout,
     apply_reference_doc_style,
     build_slide_entries,
+    generate_preview_html,
 )
 
 logger = get_logger("tools.file")
@@ -37,6 +38,12 @@ def create_final_ppt(slides_data: list, style_config: dict, run_id: str = None):
     path = os.path.join("output", filename)
     prs.save(path)
     logger.info("PPT saved: %s", path)
+
+    # Generate HTML preview
+    preview_path = generate_preview_html(run_id, slide_entries) if run_id else None
+    if preview_path:
+        logger.info("Preview: %s", preview_path)
+
     return path
 
 
