@@ -95,6 +95,7 @@ Rate-limit fallback: if the primary model throws `429`, `resource_exhausted`, or
 - **Multi-level bullets**: `apply_enhanced_ppt_style` respects `bullet.level` (0-3) for indented hierarchy
 - **Search tools** (`search_tools.py`, `image_tools.py`) use DuckDuckGo (`ddgs`) with exponential backoff + jitter on 403/rate-limit errors
 - **Legacy file**: `legacy/orchastration.py` is a 4-agent reference implementation — it is NOT imported by `main.py`
-- **Pure utility modules**: `tools/render_utils.py` and `tools/schema_parser.py` have no crewai dependency and are unit-tested (38 tests)
+- **Checkpointing** (`tools/checkpoint.py`): After each task completes, its output is saved to `output/checkpoints/{run_id}/{step_name}.json`. Use `--resume RUN_ID` to re-run only the steps that don't have checkpoints yet. Pure functions — unit-tested.
+- **Pure utility modules**: `tools/render_utils.py`, `tools/schema_parser.py`, and `tools/checkpoint.py` have no crewai dependency and are unit-tested (47 tests)
 - **Scratch files**: `tmp_writer/`, `tmp_agents.py` are gitignored experimental artifacts
 - **Gitignored**: `output/`, `temp/`, `.env`, `__pycache__/`, `.venv/`, `config.yaml`

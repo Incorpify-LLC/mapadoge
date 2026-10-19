@@ -31,6 +31,13 @@ from tasks.visual_tasks import get_asset_coordination_task
 from tasks.compilation_tasks import get_compilation_task
 
 from tools.schema_parser import parse_seed_schema
+from tools.checkpoint import (
+    save_checkpoint,
+    load_checkpoint,
+    list_checkpoints,
+    get_latest_checkpoint,
+    STEP_ORDER,
+)
 
 _DEFAULT_MODEL = "ollama/deepseek-v4-pro:cloud"
 _FALLBACK_MODEL = "ollama/glm-5.1"
@@ -74,18 +81,57 @@ class TrainingAppOrchestrator:
         self.t6 = get_asset_coordination_task(self.visual_asset_manager, [self.t3, self.t5, self.t4])
         self.t7 = get_compilation_task(self.compiler, [self.t3, self.t6], run_id=run_id)
 
-    def run(self):
+    def _attach_checkpoint_callbacks(self, run_id):
+        """Attach post-task callbacks that save checkpoints after each task completes."""
+        step_map = {
+            "synthesis": self.t1,
+            "research": self.t2,
+            "scripting": self.t3,
+            "style": self.t4,
+            "design": self.t5,
+            "assets": self.t6,
+            "compilation": self.t7,
+        }
+        for step_name, task in step_map.items():
+            task.callback = self._make_checkpoint_callback(step_name, run_id)
+
+    def _make_checkpoint_callback(self, step_name, run_id):
+        """Create a callback that saves the task output as a checkpoint."""
+        def _callback(task_output):
+            try:
+                save_checkpoint(step_name, task_output.raw, run_id)
+                logger.info("Checkpoint saved for step '%s'", step_name)
+            except Exception as e:
+                logger.warning("Failed to save checkpoint for '%s': %s", step_name, e)
+            return task_output
+        return _callback
+
+    def run(self, run_id=None, resume=False):
+        """Execute the agent pipeline, optionally resuming from checkpoints.
+
+        Args:
+            run_id: Timestamp-based run identifier for checkpointing.
+            resume: If True, skip steps that already have valid checkpoints.
+        """
+        if resume and run_id:
+            completed = list_checkpoints(run_id)
+            latest = get_latest_checkpoint(run_id)
+            logger.info("Resuming run '%s'. Completed steps: %s (latest: %s)",
+                        run_id, completed, latest)
+            tasks_to_run = self._filter_completed_tasks(completed)
+            if not tasks_to_run:
+                logger.info("All steps already have checkpoints. Nothing to resume.")
+                return None
+        else:
+            tasks_to_run = [self.t1, self.t2, self.t3, self.t4, self.t5, self.t6, self.t7]
+            if run_id:
+                self._attach_checkpoint_callbacks(run_id)
+
+        agents = self._agents_for_tasks(tasks_to_run)
+
         crew = Crew(
-            agents=[
-                self.librarian,
-                self.researcher,
-                self.scriptwriter,
-                self.creative_director,
-                self.architect,
-                self.visual_asset_manager,
-                self.compiler,
-            ],
-            tasks=[self.t1, self.t2, self.t3, self.t4, self.t5, self.t6, self.t7],
+            agents=agents,
+            tasks=tasks_to_run,
             process=Process.sequential,
         )
         result = crew.kickoff()
@@ -96,6 +142,40 @@ class TrainingAppOrchestrator:
                         self.usage_metrics.get("prompt_tokens", "?"),
                         self.usage_metrics.get("completion_tokens", "?"))
         return result
+
+    def _filter_completed_tasks(self, completed_steps):
+        """Return only tasks whose step names are NOT in completed_steps."""
+        step_to_task = {
+            "synthesis": self.t1,
+            "research": self.t2,
+            "scripting": self.t3,
+            "style": self.t4,
+            "design": self.t5,
+            "assets": self.t6,
+            "compilation": self.t7,
+        }
+        return [task for step, task in step_to_task.items() if step not in completed_steps]
+
+    def _agents_for_tasks(self, tasks):
+        """Return the set of agents needed for the given tasks."""
+        agent_map = {
+            id(self.t1): self.librarian,
+            id(self.t2): self.researcher,
+            id(self.t3): self.scriptwriter,
+            id(self.t4): self.creative_director,
+            id(self.t5): self.architect,
+            id(self.t6): self.visual_asset_manager,
+            id(self.t7): self.compiler,
+        }
+        seen = set()
+        agents = []
+        for task in tasks:
+            for task_id, agent in agent_map.items():
+                if task_id == id(task) and id(agent) not in seen:
+                    agents.append(agent)
+                    seen.add(id(agent))
+                    break
+        return agents
 
 def write_run_metadata(run_id, topic, model, style, schema_name, usage_metrics=None, fallback=False):
     """Write a run_metadata_{run_id}.json sidecar with execution details."""
@@ -133,6 +213,8 @@ def main():
     parser.add_argument("--fallback-model", type=str, default=None, help="Fallback LLM model")
     parser.add_argument("--style", type=str, default=None, help="Visual style name")
     parser.add_argument("--colors", type=str, default=None, help="Color palette hint")
+    parser.add_argument("--resume", type=str, default=None,
+                        help="Resume a previous run by its run_id (skips completed steps)")
     args = parser.parse_args()
 
     topic = resolve(args.topic, config, "topic", "Hybrid Cloud Security")
@@ -153,6 +235,12 @@ def main():
 
     model = resolve(args.model, config, "model")
 
+    resume = args.resume is not None
+    active_run_id = args.resume if resume else run_id
+    if resume:
+        completed = list_checkpoints(active_run_id)
+        logger.info("Resuming run '%s'. Already completed: %s", active_run_id, completed)
+
     app = TrainingAppOrchestrator(
         topic=topic,
         subpoints=subpoints,
@@ -161,12 +249,12 @@ def main():
         colors=colors,
         min_slides=slides,
         model=model,
-        run_id=run_id,
+        run_id=active_run_id,
     )
     try:
-        result = app.run()
+        result = app.run(run_id=active_run_id, resume=resume)
         logger.info("Execution complete")
-        write_run_metadata(run_id, topic, model, style, schema.get("theme_name", "default"), usage_metrics=app.usage_metrics)
+        write_run_metadata(active_run_id, topic, model, style, schema.get("theme_name", "default"), usage_metrics=app.usage_metrics)
         print("\n=== Execution Complete ===")
         print(result)
     except Exception as e:
@@ -183,10 +271,10 @@ def main():
                     colors=colors,
                     min_slides=slides,
                     model=fallback_model,
-                    run_id=run_id,
+                    run_id=active_run_id,
                 )
-                result = app.run()
-                write_run_metadata(run_id, topic, fallback_model, style, schema.get("theme_name", "default"), usage_metrics=app.usage_metrics, fallback=True)
+                result = app.run(run_id=active_run_id, resume=resume)
+                write_run_metadata(active_run_id, topic, fallback_model, style, schema.get("theme_name", "default"), usage_metrics=app.usage_metrics, fallback=True)
                 print("\n=== Execution Complete (Fallback) ===")
                 print(result)
             else:
