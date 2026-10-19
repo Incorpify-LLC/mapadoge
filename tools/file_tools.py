@@ -12,7 +12,7 @@ logger = get_logger("tools.file")
 
 
 @tool("create_final_ppt")
-def create_final_ppt(slides_data: list, style_config: dict):
+def create_final_ppt(slides_data: list, style_config: dict, run_id: str = None):
     """Generates a professional .pptx with themed styling, accent bars, and image support."""
     from pptx import Presentation
     from pptx.util import Inches
@@ -36,14 +36,15 @@ def create_final_ppt(slides_data: list, style_config: dict):
             slide_number=i,
         )
 
-    path = "output/training_presentation.pptx"
+    filename = f"training_presentation_{run_id}.pptx" if run_id else "training_presentation.pptx"
+    path = os.path.join("output", filename)
     prs.save(path)
     logger.info("PPT saved: %s", path)
     return path
 
 
 @tool("create_reference_doc")
-def create_reference_doc(sections: list, style_config: dict):
+def create_reference_doc(sections: list, style_config: dict, run_id: str = None):
     """Generates a detailed technical .docx manual with themed headings."""
     from docx import Document
 
@@ -52,7 +53,8 @@ def create_reference_doc(sections: list, style_config: dict):
 
     apply_reference_doc_style(doc, sections, style_config)
 
-    path = "output/reference_manual.docx"
+    filename = f"reference_manual_{run_id}.docx" if run_id else "reference_manual.docx"
+    path = os.path.join("output", filename)
     doc.save(path)
     logger.info("DOC saved: %s", path)
     return path

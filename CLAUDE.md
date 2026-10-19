@@ -82,9 +82,15 @@ Rate-limit fallback: if the primary model throws `429`, `resource_exhausted`, or
 - Agent factories: `get_<role>(llm=...) -> crewai.Agent`
 - Task factories: `get_<task>(agent, ...) -> crewai.Task`
 
+## Configuration
+
+- `config.yaml` (gitignored, user-local) overrides hardcoded defaults. Copy `config.yaml.example` to get started. CLI arguments always take precedence over config values. Resolution order: CLI > config.yaml > hardcoded fallback.
+- Output files are versioned with a timestamp run ID: `training_presentation_20261019_143022.pptx` and a `run_metadata_*.json` sidecar capturing topic, model, theme, timestamp, and token usage metrics.
+- Logging is configured via `tools/logging_config.py`. Set `LOG_LEVEL` env var (e.g. `DEBUG`) to control verbosity. All `print()` calls have been replaced with structured `logger.info/warning/error` calls.
+
 ## Key Implementation Details
 
-- **Slide chunking** (`file_tools.py`): max 6 bullets per slide; overflow slides get `(N/M)` appended to the title
+- **Slide chunking** (`render_utils.py`): max 6 bullets per slide; overflow slides get `(N/M)` appended to the title
 - **Search tools** (`search_tools.py`, `image_tools.py`) use DuckDuckGo (`ddgs`) with exponential backoff + jitter on 403/rate-limit errors
 - **Legacy file**: `legacy/orchastration.py` is a 4-agent reference implementation — it is NOT imported by `main.py`
 - **Pure utility modules**: `tools/render_utils.py` and `tools/schema_parser.py` have no crewai dependency and are unit-tested

@@ -14,6 +14,9 @@ ENV/
 .env.local
 .env.*.local
 
+# User-local config (use config.yaml.example as template)
+config.yaml
+
 # IDE
 .vscode/
 .idea/

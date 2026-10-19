@@ -1,0 +1,18 @@
+# AI Training Material Generator — default configuration
+# Copy this file to config.yaml and adjust values as needed.
+# CLI arguments override these values.
+
+topic: "Hybrid Cloud Security"
+subpoints:
+  - "IAM Federation"
+  - "KMS and Encryption"
+  - "IPsec VPN Architecture"
+references:
+  - "NIST SP 800-144"
+  - "NIST SP 800-145"
+  - "NIST SP 800-204"
+slides: 10
+model: null          # e.g. "ollama/deepseek-v4-pro:cloud"
+fallback_model: "ollama/glm-5.1"
+style: "Corporate"
+colors: "Blue/White"
