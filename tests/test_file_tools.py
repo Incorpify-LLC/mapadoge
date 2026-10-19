@@ -83,6 +83,24 @@ def test_build_slide_entries_image_only_first():
     assert entries[1]["diagram_path"] is None
 
 
+def test_build_slide_entries_empty_bullets():
+    """Layouts like Title, Divider, Diagram Full may have no bullets — they must still produce an entry."""
+    data = [
+        {"title": "Welcome", "bullets": [], "layout_type": "Title", "subtitle": "Sub"},
+        {"title": "Part 2", "bullets": [], "layout_type": "Divider"},
+        {"title": "Network", "bullets": [], "layout_type": "Diagram Full"},
+    ]
+    entries = build_slide_entries(data)
+    assert len(entries) == 3
+    assert entries[0]["title"] == "Welcome"
+    assert entries[0]["layout_type"] == "Title"
+    assert entries[0]["subtitle"] == "Sub"
+    assert entries[1]["title"] == "Part 2"
+    assert entries[1]["layout_type"] == "Divider"
+    assert entries[2]["title"] == "Network"
+    assert entries[2]["layout_type"] == "Diagram Full"
+
+
 def test_build_slide_entries_preserves_layout_type():
     data = [{"title": "Intro", "bullets": ["a"], "layout_type": "Title", "subtitle": "Sub"}]
     entries = build_slide_entries(data)

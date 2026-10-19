@@ -38,6 +38,9 @@ def build_slide_entries(slides_data: list) -> list:
     for data in slides_data:
         bullets = data.get("bullets", [])
         chunks = chunk_bullets(bullets)
+        if not chunks:
+            # Layouts like Title, Divider, Diagram Full may have no bullets.
+            chunks = [[]]
         for idx, chunk in enumerate(chunks):
             title = data.get("title", "Untitled")
             if len(chunks) > 1:
