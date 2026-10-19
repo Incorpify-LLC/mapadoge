@@ -12,7 +12,7 @@ AI Training Material Generator built on CrewAI. Orchestrates 7 specialized agent
 - **Run with custom topic**: `python main.py --topic "Zero Trust Architecture" --subpoints "Identity,Device Trust" --slides 15 --model ollama/deepseek-v4-pro:cloud`
 - **Install deps**: `pip install -r requirements.txt`
 - **System dependency**: Graphviz (`sudo apt-get install graphviz` or `brew install graphviz`)
-- **No test suite exists.** If adding tests, use `pytest` in a top-level `tests/` directory.
+- **Run tests**: `python -m pytest tests/ -v` (use `.venv/bin/python` in the project virtualenv)
 
 ## Architecture
 
@@ -35,10 +35,10 @@ AI Training Material Generator built on CrewAI. Orchestrates 7 specialized agent
 Tasks enforce structured output via `output_pydantic=ModelName` on the `Task` constructor. The models form a pipeline (`models.py`):
 
 - `ResearchKB` — Researcher output (facts with implementation steps)
-- `ContentScript` — Scriptwriter output (slides + manual sections). Task enforces `min_slides` (default 10) and requires every slide to have a unique `diagram_prompt`
+- `ContentScript` — Scriptwriter output (slides + manual sections). Task enforces `min_slides` (default 10) and requires every slide to have a unique `diagram_prompt`. Each `SlideContent` has a `layout_type` field (Title, Agenda, Title and Content, Diagram Full, Quote, Comparison, Divider) and multi-level `bullet_points` (List[BulletPoint] with `text` + `level` 0-3). `ManualSection` supports optional `custom_subheadings`.
 - `StyleConfig` — Creative Director output (colors, fonts, theme name)
 - `DesignSpecs` — Visual Architect output (maps every slide to a diagram path)
-- `VisualPackage` — Visual Asset Manager output (final slide data with resolved image/diagram paths)
+- `VisualPackage` — Visual Asset Manager output (final slide data with resolved image/diagram paths, preserves `layout_type`)
 
 ### Tool Registry
 
@@ -91,8 +91,10 @@ Rate-limit fallback: if the primary model throws `429`, `resource_exhausted`, or
 ## Key Implementation Details
 
 - **Slide chunking** (`render_utils.py`): max 6 bullets per slide; overflow slides get `(N/M)` appended to the title
+- **Slide layouts** (`render_utils.py`): `dispatch_slide_layout()` routes each slide to a renderer based on `layout_type` — Title (centered + subtitle + date), Agenda (numbered two-column), Diagram Full (large diagram + caption), Quote (pull-quote + attribution), Comparison (two-column), Divider (centered + accent bar), Title and Content (default with optional side image)
+- **Multi-level bullets**: `apply_enhanced_ppt_style` respects `bullet.level` (0-3) for indented hierarchy
 - **Search tools** (`search_tools.py`, `image_tools.py`) use DuckDuckGo (`ddgs`) with exponential backoff + jitter on 403/rate-limit errors
 - **Legacy file**: `legacy/orchastration.py` is a 4-agent reference implementation — it is NOT imported by `main.py`
-- **Pure utility modules**: `tools/render_utils.py` and `tools/schema_parser.py` have no crewai dependency and are unit-tested
+- **Pure utility modules**: `tools/render_utils.py` and `tools/schema_parser.py` have no crewai dependency and are unit-tested (38 tests)
 - **Scratch files**: `tmp_writer/`, `tmp_agents.py` are gitignored experimental artifacts
-- **Gitignored**: `output/`, `temp/`, `.env`, `__pycache__/`, `.venv/`
+- **Gitignored**: `output/`, `temp/`, `.env`, `__pycache__/`, `.venv/`, `config.yaml`

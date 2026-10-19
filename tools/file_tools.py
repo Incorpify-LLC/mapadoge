@@ -3,7 +3,7 @@ from crewai.tools import tool
 
 from tools.logging_config import get_logger
 from tools.render_utils import (
-    apply_enhanced_ppt_style,
+    dispatch_slide_layout,
     apply_reference_doc_style,
     build_slide_entries,
 )
@@ -26,13 +26,10 @@ def create_final_ppt(slides_data: list, style_config: dict, run_id: str = None):
 
     for i, entry in enumerate(slide_entries, start=1):
         slide = prs.slides.add_slide(prs.slide_layouts[6])
-        apply_enhanced_ppt_style(
+        dispatch_slide_layout(
             slide,
-            entry["title"],
-            entry["bullets"],
+            entry,
             style_config,
-            diagram_path=entry.get("diagram_path"),
-            image_path=entry.get("image_path"),
             slide_number=i,
         )
 

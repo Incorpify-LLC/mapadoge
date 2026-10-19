@@ -12,17 +12,31 @@ class ResearchKB(BaseModel):
     facts: List[ResearchFact]
     summary: str
 
+class BulletPoint(BaseModel):
+    text: str
+    level: int = Field(default=0, ge=0, le=3, description="Indentation level (0 = top, up to 3 nested levels).")
+
+
 class SlideContent(BaseModel):
     title: str
-    bullet_points: List[str]
+    bullet_points: List[BulletPoint] = Field(default_factory=list)
     diagram_prompt: str = Field(..., description="A prompt for the Visual Architect to generate a diagram.")
     diagram_script: Optional[str] = Field(default=None, description="Optional Python code using the diagrams library to generate the visual.")
+    layout_type: str = Field(default="Title and Content", description="Layout template: Title, Agenda, Title and Content, Diagram Full, Quote, Comparison, Divider.")
+    subtitle: Optional[str] = Field(default=None, description="Subtitle for Title and Agenda slides.")
+    attribution: Optional[str] = Field(default=None, description="Attribution for Quote slides.")
+
+class SectionHeading(BaseModel):
+    title: str
+    level: int = Field(default=2, ge=1, le=3, description="Heading level (1-3).")
+
 
 class ManualSection(BaseModel):
     heading: str
     prose_content: str = Field(..., description="Long-form narrative content for the reference manual.")
     implementation_guide: str = Field(..., description="Deep-dive technical instructions.")
     troubleshooting: Optional[str] = None
+    custom_subheadings: Optional[List[SectionHeading]] = Field(default=None, description="Optional custom subheadings for this section.")
 
 class ContentScript(BaseModel):
     slides: List[SlideContent]
@@ -55,6 +69,9 @@ class FinalSlideData(BaseModel):
     bullets: List[str]
     diagram_path: Optional[str] = None
     image_path: Optional[str] = None
+    layout_type: str = Field(default="Title and Content", description="The PPT layout to use.")
+    subtitle: Optional[str] = None
+    attribution: Optional[str] = None
 
 class VisualPackage(BaseModel):
     slides: List[FinalSlideData]
