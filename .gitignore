@@ -27,6 +27,12 @@ output/
 # Temporary assets
 temp/
 
+# Scratch / debugging artifacts
+tmp_writer/
+tmp_agents.py
+testfile.txt
+fix_docs.py
+
 # Logs
 *.log
 

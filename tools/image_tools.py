@@ -5,6 +5,10 @@ import random
 from crewai.tools import tool
 from ddgs import DDGS
 
+from tools.logging_config import get_logger
+
+logger = get_logger("tools.image")
+
 _MAX_RETRIES = 3
 _BASE_DELAY = 2.0
 _MAX_IMAGE_WIDTH = 1024
@@ -38,7 +42,7 @@ def _fetch_image_raw(query: str, filename: str, temp_dir="temp"):
 
     results = _ddgs_image_search_with_retry(query, max_results=5)
     if results is None:
-        print(f"Search error: rate limited or failed for query: {query}")
+        logger.warning("Image search rate limited or failed for query: %s", query)
         return None
     if not results:
         return None

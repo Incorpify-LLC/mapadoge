@@ -4,77 +4,89 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is an AI Training Material Generator built on CrewAI. It orchestrates 7 specialized agents to research a technical topic and produce a themed PowerPoint presentation (`output/training_presentation.pptx`) and a Word reference manual (`output/reference_manual.docx`).
+AI Training Material Generator built on CrewAI. Orchestrates 7 specialized agents to research a technical topic and produce a themed PowerPoint (`output/training_presentation.pptx`) and a Word reference manual (`output/reference_manual.docx`).
 
-## Common Commands
+## Commands
 
-- **Run the application**: `python main.py`
-- **Run with custom topic**: `python main.py --topic "Zero Trust Architecture" --subpoints "Identity,Device Trust" --slides 15`
-- **Install dependencies**: `pip install -r requirements.txt`
-- **No test suite is configured.** If adding tests, prefer `pytest` in a top-level `tests/` directory.
-
-## Prerequisites
-
-- Python 3.10+
-- Graphviz system dependency (`sudo apt-get install graphviz` or `brew install graphviz`)
-- API credentials in a `.env` file: `GEMINI_API_KEY=...` or Ollama running locally/cloud
+- **Run**: `python main.py`
+- **Run with custom topic**: `python main.py --topic "Zero Trust Architecture" --subpoints "Identity,Device Trust" --slides 15 --model ollama/deepseek-v4-pro:cloud`
+- **Install deps**: `pip install -r requirements.txt`
+- **System dependency**: Graphviz (`sudo apt-get install graphviz` or `brew install graphviz`)
+- **No test suite exists.** If adding tests, use `pytest` in a top-level `tests/` directory.
 
 ## Architecture
 
-### Agent Pipeline (Sequential)
+### Sequential Agent Pipeline
 
-`main.py` (`TrainingAppOrchestrator`) wires 7 agents and 7 tasks in a strict sequential `Crew`:
+`main.py` (`TrainingAppOrchestrator`) wires 7 agents and 7 tasks into a strict sequential `Crew` (`Process.sequential`). Each agent has exactly one task. The task context dependencies (`context=[...]`) are what actually drive the data flow — not all tasks run in pure order:
 
-1. **Librarian** (`agents/librarian.py`) → Synthesizes a master research document via web search (`tools/search_tools.py`).
-2. **Researcher** (`agents/researcher.py`) → Deep-dive technical analysis on subpoints.
-3. **Scriptwriter** (`agents/scriptwriter.py`) → Produces `ContentScript` (slides + manual sections). Task enforces a minimum slide count (`min_slides`, default 10) and requires every slide to have a unique `diagram_prompt`.
-4. **Creative Director** (`agents/creative_director.py`) → Defines visual identity by parsing `default_seed_schema.md` (`tools/schema_loader.py`).
-5. **Visual Architect** (`agents/visual_architect.py`) → Generates infrastructure diagrams using the `diagrams` library + Graphviz (`tools/diagram_tools.py`). Falls back to web image search if diagram generation fails.
-6. **Visual Asset Manager** (`agents/visual_asset_manager.py`) → Coordinates and curates final visual assets.
-7. **Compiler** (`agents/compiler.py`) → Assembles the final `.pptx` and `.docx` files (`tools/file_tools.py`).
+| Order | Agent | File | Task Context Dependencies |
+|-------|-------|------|--------------------------|
+| 1 | Librarian | `agents/librarian.py` | none |
+| 2 | Researcher | `agents/researcher.py` | none |
+| 3 | Scriptwriter | `agents/scriptwriter.py` | t1 (Librarian), t2 (Researcher) |
+| 4 | Creative Director | `agents/creative_director.py` | none |
+| 5 | Visual Architect | `agents/visual_architect.py` | t3 (Scriptwriter) |
+| 6 | Visual Asset Manager | `agents/visual_asset_manager.py` | t3, t5 (Architect), t4 (Creative Director) |
+| 7 | Compiler | `agents/compiler.py` | t3, t6 (Asset Manager) |
 
-### Data Flow
+### Pydantic Model Flow
 
-- Tasks pass context via `context=[...]` in CrewAI. `scripting_tasks.py` depends on both librarian and researcher outputs; `design_tasks.py` depends on scripting; `compilation_tasks.py` depends on scripting and visual assets.
-- Structured outputs are enforced via Pydantic models in `models.py`: `ResearchKB`, `ContentScript`, `DesignSpecs`, `VisualPackage`.
-- Theme data is loaded from `default_seed_schema.md` at runtime. The parser extracts the first palette table it finds and normalizes role names into `StyleConfig` fields (e.g., `primary` → `primary_color`).
+Tasks enforce structured output via `output_pydantic=ModelName` on the `Task` constructor. The models form a pipeline (`models.py`):
 
-### Key Files
+- `ResearchKB` — Researcher output (facts with implementation steps)
+- `ContentScript` — Scriptwriter output (slides + manual sections). Task enforces `min_slides` (default 10) and requires every slide to have a unique `diagram_prompt`
+- `StyleConfig` — Creative Director output (colors, fonts, theme name)
+- `DesignSpecs` — Visual Architect output (maps every slide to a diagram path)
+- `VisualPackage` — Visual Asset Manager output (final slide data with resolved image/diagram paths)
 
-| File | Purpose |
-|------|---------|
-| `main.py` | Entry point, argument parsing, LLM resolution, fallback logic, orchestrator instantiation |
-| `models.py` | Pydantic models for structured agent outputs |
-| `default_seed_schema.md` | Visual theme specification (colors, fonts, layout rules) |
-| `orchastration.py` | Legacy 4-agent orchestration reference; not imported by `main.py` |
+### Tool Registry
+
+All tools use `@tool("name")` from `crewai.tools` and require a docstring. Each is registered per-agent in the factory's `tools=[...]` list:
+
+| Tool | File | Registered On |
+|------|------|---------------|
+| `internet_search` | `tools/search_tools.py` | Librarian |
+| `load_default_schema` | `tools/schema_loader.py` | Creative Director |
+| `generate_infra_diagram` | `tools/diagram_tools.py` | Visual Architect, Visual Asset Manager |
+| `generate_diagram_with_fallback` | `tools/diagram_tools.py` | Visual Architect |
+| `validate_diagram_script` | `tools/diagram_tools.py` | Visual Architect |
+| `fetch_technical_image` | `tools/image_tools.py` | Visual Asset Manager |
+| `prepare_image_for_slide` | `tools/image_tools.py` | Visual Asset Manager |
+| `create_final_ppt` | `tools/file_tools.py` | Compiler |
+| `create_reference_doc` | `tools/file_tools.py` | Compiler |
+
+### Theme System
+
+`default_seed_schema.md` defines visual themes (default: "Corporate Deep Blue"). The parser (`tools/schema_loader.py`) extracts the **first** palette table and normalizes role names into `StyleConfig` fields: `primary` → `primary_color`, `secondary` → `secondary_color`, `accent` → `accent_color`, `background` → `background_color`. Two themes exist in the schema: "Corporate Deep Blue" and "Dark Modern".
+
+### Diagram Fallback Chain
+
+1. Visual Architect writes Python `diagrams` code; `tools/diagram_tools.py` saves it to `temp/`, runs it as a subprocess with a 120-second timeout
+2. If the output PNG is missing or <100 bytes → returns `None`
+3. `generate_diagram_with_fallback` then calls `fetch_technical_image` via DuckDuckGo image search
+4. Visual Asset Manager verifies every slide has a valid asset and fetches fallback images for any missing diagrams
+
+### LLM Resolution
+
+Priority: `--model` CLI → `OLLAMA_MODEL` env → `GEMINI_API_KEY` env (auto-selects `gemini/gemini-2.5-flash`) → default `ollama/deepseek-v4-pro:cloud`.
+
+Rate-limit fallback: if the primary model throws `429`, `resource_exhausted`, or `rate` in the error message, the app retries the full run with `--fallback-model` (default: `ollama/glm-5.1`).
 
 ## Code Conventions
 
-- 4-space indentation.
-- `snake_case` for modules, functions, and variables; `PascalCase` for Pydantic models and classes.
-- Imports grouped as: stdlib, third-party, local (blank line between groups).
-- CrewAI tools must use the `@tool("tool_name")` decorator and include a docstring.
-- Agent factories follow the pattern `get_<role>(llm=...) -> crewai.Agent`.
-- Task factories follow the pattern `get_<task>(agent, ...) -> crewai.Task`.
+- 4-space indentation
+- `snake_case` for modules, functions, variables; `PascalCase` for Pydantic models and classes
+- Import groups: stdlib, third-party, local (blank line between groups)
+- Use type hints; Pydantic `Field(..., description="...")` for model field documentation
+- Agent factories: `get_<role>(llm=...) -> crewai.Agent`
+- Task factories: `get_<task>(agent, ...) -> crewai.Task`
 
-## LLM Resolution & Fallback
+## Key Implementation Details
 
-`main.py` resolves the active LLM in this priority:
-1. `--model` CLI argument
-2. `OLLAMA_MODEL` environment variable
-3. `GEMINI_API_KEY` environment variable (auto-selects `gemini/gemini-2.5-flash`)
-4. Default: `ollama/deepseek-v4-pro:cloud`
-
-If the primary model throws a rate-limit error (`429`, `resource_exhausted`, or `rate` in the error message), the app automatically retries with `--fallback-model` (default: `ollama/glm-5.1`).
-
-## Adding Agents or Tools
-
-- **New agent**: Create `agents/<role>.py` with a `get_<role>(llm=...)` factory, then register it in `TrainingAppOrchestrator.__init__` in `main.py`.
-- **New tool**: Define the function in the appropriate `tools/*.py` file, decorate with `@tool("name")`, add a docstring, and register it in the relevant agent's `tools=[...]` list.
-
-## Important Implementation Details
-
-- `tools/diagram_tools.py` writes diagram scripts to `temp/` and executes them as subprocesses with a 120-second timeout. If the output PNG is missing or <100 bytes, it returns `None` to trigger fallback behavior.
-- `tools/search_tools.py` and `tools/image_tools.py` use DuckDuckGo (`ddgs`) with exponential backoff and jitter on 403/rate-limit errors.
-- `tools/file_tools.py` chunks slides into max 6 bullets per slide, appending `(N/M)` to titles when splitting.
-- Generated artifacts in `output/` and intermediate files in `temp/` are gitignored.
+- **Slide chunking** (`file_tools.py`): max 6 bullets per slide; overflow slides get `(N/M)` appended to the title
+- **Search tools** (`search_tools.py`, `image_tools.py`) use DuckDuckGo (`ddgs`) with exponential backoff + jitter on 403/rate-limit errors
+- **Legacy file**: `legacy/orchastration.py` is a 4-agent reference implementation — it is NOT imported by `main.py`
+- **Pure utility modules**: `tools/render_utils.py` and `tools/schema_parser.py` have no crewai dependency and are unit-tested
+- **Scratch files**: `tmp_writer/`, `tmp_agents.py` are gitignored experimental artifacts
+- **Gitignored**: `output/`, `temp/`, `.env`, `__pycache__/`, `.venv/`

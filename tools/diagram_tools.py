@@ -3,6 +3,10 @@ import os
 import sys
 from crewai.tools import tool
 
+from tools.logging_config import get_logger
+
+logger = get_logger("tools.diagram")
+
 def _write_and_run_script(script_content, filename, temp_dir="temp"):
     os.makedirs(temp_dir, exist_ok=True)
     script_path = os.path.join(temp_dir, f"{filename}_script.py")
@@ -25,7 +29,9 @@ def generate_infra_diagram(script_content, filename):
     """Executes a Python script using the diagrams library to generate a PNG. Returns the absolute path to the generated image, or an error string."""
     result = _write_and_run_script(script_content, filename)
     if result:
+        logger.info("Diagram generated: %s", result)
         return result
+    logger.warning("Diagram generation failed for %s", filename)
     return f"Error: diagram generation failed for {filename}."
 
 @tool("generate_diagram_with_fallback")
@@ -34,13 +40,16 @@ def generate_diagram_with_fallback(script_content, filename, search_query=""):
     result = _write_and_run_script(script_content, filename)
     if result:
         return result
+    logger.info("Diagram failed, attempting image fallback for %s", filename)
     try:
         from tools.image_tools import _fetch_image_raw
         img_path = _fetch_image_raw(search_query or filename, filename)
         if img_path and os.path.exists(img_path):
+            logger.info("Image fallback succeeded: %s", img_path)
             return img_path
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Image fallback error: %s", e)
+    logger.error("Both diagram and fallback failed for %s", filename)
     return f"Error: both diagram generation and image fallback failed for {filename}."
 
 @tool("validate_diagram_script")

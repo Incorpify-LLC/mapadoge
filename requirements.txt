@@ -8,3 +8,7 @@ langchain
 langchain-community
 ddgs
 ollama
+pyyaml
+
+# Dev dependencies
+pytest

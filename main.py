@@ -4,6 +4,11 @@ import argparse
 from dotenv import load_dotenv
 load_dotenv()
 
+from tools.logging_config import setup_logging, get_logger
+
+setup_logging(os.getenv("LOG_LEVEL", "INFO"))
+logger = get_logger("orchestrator")
+
 from crewai import Crew, Process
 
 from agents.librarian import get_librarian
@@ -22,7 +27,7 @@ from tasks.design_tasks import get_design_task
 from tasks.visual_tasks import get_asset_coordination_task
 from tasks.compilation_tasks import get_compilation_task
 
-from tools.schema_loader import parse_seed_schema
+from tools.schema_parser import parse_seed_schema
 
 _DEFAULT_MODEL = "ollama/deepseek-v4-pro:cloud"
 _FALLBACK_MODEL = "ollama/glm-5.1"
@@ -48,7 +53,7 @@ class TrainingAppOrchestrator:
     def __init__(self, topic, subpoints, references, style="Corporate", colors="Blue/White",
                  min_slides=10, model=None):
         llm = _try_model_with_fallback(_resolve_llm(model))
-        print(f"Using LLM: {llm}")
+        logger.info("Using LLM: %s", llm)
 
         self.librarian = get_librarian(llm=llm)
         self.researcher = get_researcher(topic, references, llm=llm)
@@ -139,7 +144,7 @@ def main():
     subpoints = [s.strip() for s in args.subpoints.split(",") if s.strip()]
 
     schema = parse_seed_schema()
-    print("Loaded theme:", schema.get("theme_name", "default"))
+    logger.info("Loaded theme: %s", schema.get("theme_name", "default"))
 
     app = TrainingAppOrchestrator(
         topic=args.topic,
@@ -152,14 +157,15 @@ def main():
     )
     try:
         result = app.run()
+        logger.info("Execution complete")
         print("\n=== Execution Complete ===")
         print(result)
     except Exception as e:
         err_msg = str(e).lower()
         if "429" in err_msg or "resource_exhausted" in err_msg or "rate" in err_msg:
-            print(f"\nPrimary model failed with rate limit / exhaustion: {e}")
+            logger.warning("Primary model rate limited: %s", e)
             if args.fallback_model and args.fallback_model != args.model:
-                print(f"Trying fallback model: {args.fallback_model}")
+                logger.info("Trying fallback model: %s", args.fallback_model)
                 app = TrainingAppOrchestrator(
                     topic=args.topic,
                     subpoints=subpoints,

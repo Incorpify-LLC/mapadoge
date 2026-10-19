@@ -1,3 +1,6 @@
+# Legacy 4-agent orchestration reference. NOT imported by main.py.
+# Kept for historical reference only. The active orchestrator is in main.py.
+
 from crewai import Agent, Task, Crew, Process
 from langchain.tools import Tool
 # Note: You would import your custom tools for PPTX/DOCX generation here
